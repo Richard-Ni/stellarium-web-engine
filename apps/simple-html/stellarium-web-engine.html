@@ -133,8 +133,8 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2/dist/vuetify.js"></script>
 <script src="https://unpkg.com/i18next/dist/umd/i18next.min.js"></script>
 <script src="https://www.unpkg.com/i18next-xhr-backend/dist/umd/i18nextXHRBackend.min.js"></script>
 <script src="../../build/stellarium-web-engine.js"></script>
@@ -225,6 +225,7 @@
           stel.change(function(obj, attr) {
             if (attr !== "hovered") {
               that.stel = Object.assign(Object.create(stel), {}, stel)
+            }
           })
 
           stel.setFont('regular', 'static/fonts/Roboto-Regular.ttf', 1.38);

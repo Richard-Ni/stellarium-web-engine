@@ -134,7 +134,7 @@ for (const i in Vue.SWPlugins) {
 routes[0].children.push({ path: '/p', redirect: defaultObservingRoute.path })
 var router = new Router({
   mode: 'history',
-  base: '/',
+  base: process.env.BASE_URL,
   routes: routes
 })
 

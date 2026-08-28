@@ -21,7 +21,7 @@ module.exports = {
          pathConfigs[0].force = true // so the original `/public` folder keeps priority
          // add other locations.
          pathConfigs.unshift({
-           from: '../skydata',
+           from: '../test-skydata',
            to: to + '/skydata',
          })
          return [pathConfigs]
