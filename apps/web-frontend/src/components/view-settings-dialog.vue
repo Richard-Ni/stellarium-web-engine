@@ -125,7 +125,8 @@ const LIMIT_MAG_MAX = 25
 const LIMIT_MAG_UNLIMITED = 99
 
 // Engine defaults, used by the 'Reset' button of the rendering section.
-// Keep in sync with core_init() in src/core.c and atmosphere_init().
+// Keep in sync with core_init() in src/core.c, atmosphere_init() and the
+// landscapes_t defaults.
 const RENDERING_DEFAULTS = {
   bortle_index: 3,
   exposure_scale: 2,
@@ -134,7 +135,8 @@ const RENDERING_DEFAULTS = {
   star_relative_scale: 1.1,
   center_hints_mag_offset: 0,
   display_limit_mag: LIMIT_MAG_UNLIMITED,
-  'atmosphere.turbidity': 0.96
+  'atmosphere.turbidity': 0.96,
+  'landscapes.brightness_floor': 0
 }
 
 const SECTIONS = [
