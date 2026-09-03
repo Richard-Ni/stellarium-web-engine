@@ -71,9 +71,11 @@ const mediump float SHININESS_WIDE = 24.0;
 // Colour of the water itself, what is left where nothing is reflected.
 const mediump vec3 DEEP = vec3(0.020, 0.070, 0.110);
 
-// Eye height above the water, in metres.  Sets how fast the waves shrink
-// with distance, so it is really a look control rather than a measurement.
-const highp float EYE_HEIGHT = 2.0;
+// Eye height above the water, in metres: a low bluff rather than standing in
+// the shallows.  At 2m the bottom of a typical view lands 2.7m away, less
+// than a sixth of the dominant swell, so the near water had no wave in it at
+// all.  This is a look control, not a measurement.
+const highp float EYE_HEIGHT = 12.0;
 
 /*
  * Slope of the water surface at a point, as the gradient of a sum of
@@ -92,7 +94,7 @@ mediump vec2 wave_slope(highp vec2 p, highp float dist)
     #define WAVE(dir, wavenumber, amplitude)                                 \
         k = wavenumber;                                                      \
         w = sqrt(9.81 * k);                                                  \
-        att = 1.0 / (1.0 + dist * k * 0.010);                                \
+        att = 1.0 / (1.0 + dist * k * 0.004);                                \
         amp = (amplitude) * att;                                             \
         phase = k * dot(dir, p) - w * u_time;                                \
         g += amp * k * cos(phase) * (dir);
@@ -101,9 +103,37 @@ mediump vec2 wave_slope(highp vec2 p, highp float dist)
     WAVE(vec2( 0.707,  0.707), 0.71, 0.038)
     WAVE(vec2(-0.588,  0.809), 1.63, 0.016)
     WAVE(vec2( 0.914, -0.407), 3.40, 0.007)
+    // Sub metre chop, which is all there is to see in the near field.
+    WAVE(vec2(-0.259, -0.966), 7.20, 0.0030)
+    WAVE(vec2( 0.500, -0.866), 15.0, 0.0012)
     #undef WAVE
 
     return g;
+}
+
+/*
+ * Shape of the sky we are mirroring, bright at the horizon and deeper
+ * overhead, warm while the sun is low and neutral once it has set.  Only the
+ * hue varies here; `day` further down does the dimming, so that the minimum
+ * brightness setting stays a single lever.
+ *
+ * Making this depend on the reflected direction rather than being one flat
+ * colour is what gives the water its texture: a tilted wave face mirrors a
+ * different part of the sky, instead of merely more or less of the same one.
+ */
+mediump vec3 sky_shape(mediump float up, mediump float sun_z)
+{
+    mediump float twilight = smoothstep(-0.25, 0.0, sun_z);
+    mediump float daylight = smoothstep(0.0, 0.30, sun_z);
+
+    mediump vec3 hor = mix(vec3(0.90, 0.50, 0.22),
+                           vec3(0.55, 0.66, 0.85), daylight);
+    mediump vec3 zen = mix(vec3(0.30, 0.26, 0.40),
+                           vec3(0.18, 0.34, 0.66), daylight);
+    hor = mix(vec3(0.25, 0.30, 0.45), hor, twilight);
+    zen = mix(vec3(0.13, 0.16, 0.30), zen, twilight);
+
+    return mix(hor, zen, smoothstep(0.0, 0.45, up));
 }
 
 /*
@@ -152,15 +182,21 @@ void main()
                             0.12 * moonlight);
     day = max(day, u_floor);
 
-    // Crude stand in for the sky we are reflecting: dark blue at night, warm
-    // while the sun is near the horizon, blue once it is up.  Without the
-    // night step the sea keeps a sunset tint in the middle of the night.
-    mediump vec3 sky = mix(vec3(0.05, 0.07, 0.13),
-                           vec3(0.75, 0.42, 0.20),
-                           smoothstep(-0.25, 0.0, sun.z));
-    sky = mix(sky, vec3(0.35, 0.52, 0.78), smoothstep(0.0, 0.30, sun.z));
+    // Which way the water sends the sky into the eye, and hence which part
+    // of it we see on this wave face.
+    mediump vec3 refl = reflect(dir, n);
+    mediump vec3 sky = sky_shape(max(refl.z, 0.0), sun.z);
 
     mediump vec3 color = mix(DEEP, sky, fresnel) * day;
+
+    // Light that goes into the water and scatters back out, strongest on the
+    // faces turned towards the sun.  Weighted by 1 - fresnel, so it is what
+    // is left looking steeply down, where the reflection has all but gone
+    // and the waves would otherwise have no contrast at all.
+    if (sun_up > 0.0) {
+        mediump float sss = max(dot(n, sun), 0.0) * (1.0 - fresnel);
+        color += vec3(0.06, 0.20, 0.17) * sss * sss * sun_up * day;
+    }
 
     if (sun_up > 0.0) {
         mediump vec3 sun_color = mix(vec3(1.0, 0.45, 0.20),
