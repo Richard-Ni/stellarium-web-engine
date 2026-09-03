@@ -156,6 +156,7 @@ struct item
             float moon[4];  // Moon position + phase, observed frame.
             float strength;
             float floor;    // Minimum ground brightness setting.
+            float time;     // Seconds, for the waves.
         } ocean;
 
         struct {
@@ -753,7 +754,8 @@ void render_quad(renderer_t *rend, const painter_t *painter,
                 memcmp(item->ocean.moon, painter->ocean.moon,
                        sizeof(item->ocean.moon)) ||
                 item->ocean.strength != painter->ocean.strength ||
-                item->ocean.floor != painter->ocean.floor))
+                item->ocean.floor != painter->ocean.floor ||
+                item->ocean.time != painter->ocean.time))
             item = NULL;
         if (!item) {
             item = calloc(1, sizeof(*item));
@@ -765,6 +767,7 @@ void render_quad(renderer_t *rend, const painter_t *painter,
                    sizeof(item->ocean.moon));
             item->ocean.strength = painter->ocean.strength;
             item->ocean.floor = painter->ocean.floor;
+            item->ocean.time = painter->ocean.time;
             gl_buf_alloc(&item->buf, &OCEAN_BUF, 256);
             gl_buf_alloc(&item->indices, &INDICES_BUF, 256 * 6);
         }
@@ -1540,6 +1543,7 @@ static void item_ocean_render(renderer_t *rend, const item_t *item)
     gl_update_uniform(shader, "u_moon", item->ocean.moon);
     gl_update_uniform(shader, "u_strength", item->ocean.strength);
     gl_update_uniform(shader, "u_floor", item->ocean.floor);
+    gl_update_uniform(shader, "u_time", item->ocean.time);
 
     draw_buffer(&item->buf, &item->indices, GL_TRIANGLES);
 }

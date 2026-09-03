@@ -185,6 +185,7 @@ struct painter
             float moon[4];
             float strength;
             float floor;    // Minimum ground brightness setting.
+            float time;     // Seconds, for the waves.
         } ocean;
 
         // For line rendering only.

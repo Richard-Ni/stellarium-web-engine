@@ -50,6 +50,10 @@ typedef struct landscapes {
     // from the sun and moon positions.
     double          brightness_floor;
     double          ocean_strength;
+    // Seconds since startup, driving the waves.  Accumulated from dt rather
+    // than read off core->clock: unix time does not survive the cast to the
+    // float uniform, and the waves should not speed up with the time rate.
+    double          ocean_time;
     landscape_t     *current; // The current landscape.
     int             loading_code; // Return code of the initial list loading.
 } landscapes_t;
@@ -146,7 +150,7 @@ static void render_fog(const painter_t *painter_, double alpha)
  * the horizon; the shader does the rest from the view direction.
  */
 static void render_ocean(const painter_t *painter_, double floor,
-                         double strength)
+                         double strength, double time)
 {
     int pix, order = 1, split = 4;
     double theta, phi, sun_pos[4], moon_pos[4], moon_phase;
@@ -172,6 +176,7 @@ static void render_ocean(const painter_t *painter_, double floor,
     painter.ocean.moon[3] = moon_phase;
     painter.ocean.strength = strength;
     painter.ocean.floor = floor;
+    painter.ocean.time = time;
 
     for (pix = 0; pix < 12 * (1 << (2 * order)); pix++) {
         healpix_pix2ang(1 << order, pix, &theta, &phi);
@@ -230,7 +235,8 @@ static int landscape_render(obj_t *obj, const painter_t *painter_)
         obj_render(ls->shape, &painter);
     }
     if (ls->ocean) {
-        render_ocean(&painter, lss->brightness_floor, lss->ocean_strength);
+        render_ocean(&painter, lss->brightness_floor, lss->ocean_strength,
+                     lss->ocean_time);
     }
     return 0;
 }
@@ -303,6 +309,7 @@ static int landscapes_update(obj_t *obj, double dt)
     }
     fader_update(&lss->visible, dt);
     fader_update(&lss->fog_visible, dt);
+    lss->ocean_time += dt;
     return 0;
 }
 
