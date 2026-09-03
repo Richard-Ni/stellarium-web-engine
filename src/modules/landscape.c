@@ -149,10 +149,10 @@ static void render_ocean(const painter_t *painter_, double floor,
                          double strength)
 {
     int pix, order = 1, split = 4;
-    double theta, phi, sun_pos[4];
+    double theta, phi, sun_pos[4], moon_pos[4], moon_phase;
     painter_t painter = *painter_;
     uv_map_t map;
-    obj_t *sun;
+    obj_t *sun, *moon;
 
     if (painter.color[3] == 0.0) return;
 
@@ -160,8 +160,16 @@ static void render_ocean(const painter_t *painter_, double floor,
     obj_get_pos(sun, core->observer, FRAME_OBSERVED, sun_pos);
     vec3_normalize(sun_pos, sun_pos);
 
+    // The moon is what lights the sea once the sun is gone.
+    moon = core_get_planet(PLANET_MOON);
+    obj_get_pos(moon, core->observer, FRAME_OBSERVED, moon_pos);
+    obj_get_info(moon, core->observer, INFO_PHASE, &moon_phase);
+    vec3_normalize(moon_pos, moon_pos);
+
     painter.flags |= PAINTER_OCEAN_SHADER;
     vec3_to_float(sun_pos, painter.ocean.sun);
+    vec3_to_float(moon_pos, painter.ocean.moon);
+    painter.ocean.moon[3] = moon_phase;
     painter.ocean.strength = strength;
     painter.ocean.floor = floor;
 

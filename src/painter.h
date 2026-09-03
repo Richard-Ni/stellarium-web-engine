@@ -180,6 +180,9 @@ struct painter
         // For the procedural sea only.
         struct {
             float sun[3];   // Sun position, observed frame.
+            // Moon position, observed frame, w is the phase, so that a thin
+            // crescent reflects a lot less than a full moon.
+            float moon[4];
             float strength;
             float floor;    // Minimum ground brightness setting.
         } ocean;

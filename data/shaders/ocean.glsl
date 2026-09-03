@@ -15,8 +15,13 @@
  *
  * The water is a flat horizontal plane.  A Schlick fresnel term mixes the
  * dark body colour into the reflected sky, which is what gives the bright
- * band at the horizon, and a Blinn-Phong lobe adds the sun glitter; the lobe
- * stretches into the usual vertical path on its own as the sun gets low.
+ * band at the horizon, and a Blinn-Phong lobe adds the glitter of the sun,
+ * and of the moon once the sun has set; the lobe stretches into the usual
+ * vertical path on its own as the light gets low.
+ *
+ * The reflected sky is an analytic colour, not the star field that was
+ * actually drawn: sampling that back would need an offscreen render target,
+ * which the renderer does not have.
  *
  * There are no waves and no time dependency here: everything is a function
  * of the view direction and the sun position only.
@@ -28,6 +33,7 @@ precision mediump float;
 
 uniform lowp    vec4        u_color;
 uniform mediump vec3        u_sun;        // Sun direction, observed frame.
+uniform mediump vec4        u_moon;       // Moon direction + phase.
 uniform mediump float       u_strength;   // Scales the specular reflection.
 uniform mediump float       u_floor;      // Minimum ground brightness setting.
 
@@ -58,6 +64,18 @@ const mediump float SHININESS_WIDE = 24.0;
 // Colour of the water itself, what is left where nothing is reflected.
 const mediump vec3 DEEP = vec3(0.020, 0.070, 0.110);
 
+/*
+ * Glitter of one light source: the surface normal is +z, so n.h is just h.z.
+ * Two lobes, the tight one for the core of the path and the wide one for the
+ * scatter around it.
+ */
+mediump float glitter(mediump vec3 dir, mediump vec3 light)
+{
+    mediump vec3 h = normalize(light - dir);
+    mediump float n_dot_h = max(h.z, 0.0);
+    return pow(n_dot_h, SHININESS) + 0.06 * pow(n_dot_h, SHININESS_WIDE);
+}
+
 void main()
 {
     mediump vec3 dir = normalize(v_dir);
@@ -73,9 +91,17 @@ void main()
     mediump float cos_i = min(-dir.z, 1.0);
     mediump float fresnel = F0 + (1.0 - F0) * pow(1.0 - cos_i, 5.0);
 
+    mediump vec3 moon = normalize(u_moon.xyz);
+    mediump float sun_up = smoothstep(-0.05, 0.02, sun.z);
+    mediump float moon_up = smoothstep(-0.05, 0.02, moon.z);
+    // A thin crescent lights the water far less than a full moon.
+    mediump float moonlight = u_moon.w * moon_up;
+
     // The shader has its own day/night model, so the brightness setting only
     // comes in as the floor below which the sea stops getting darker.
-    mediump float day = max(smoothstep(-0.12, 0.15, sun.z), u_floor);
+    mediump float day = max(smoothstep(-0.12, 0.15, sun.z),
+                            0.12 * moonlight);
+    day = max(day, u_floor);
 
     // Crude stand in for the sky we are reflecting: dark blue at night, warm
     // while the sun is near the horizon, blue once it is up.  Without the
@@ -87,17 +113,20 @@ void main()
 
     mediump vec3 color = mix(DEEP, sky, fresnel) * day;
 
-    // Specular glitter.  The surface normal is +z, so n.h is just h.z.
-    mediump float sun_up = smoothstep(-0.05, 0.02, sun.z);
     if (sun_up > 0.0) {
-        mediump vec3 h = normalize(sun - dir);
-        mediump float n_dot_h = max(h.z, 0.0);
-        mediump float spec = pow(n_dot_h, SHININESS)
-                           + 0.06 * pow(n_dot_h, SHININESS_WIDE);
         mediump vec3 sun_color = mix(vec3(1.0, 0.45, 0.20),
                                      vec3(1.0, 0.95, 0.85),
                                      smoothstep(0.0, 0.35, sun.z));
-        color += sun_color * spec * fresnel * 25.0 * sun_up * u_strength;
+        color += sun_color * glitter(dir, sun)
+               * fresnel * 25.0 * sun_up * u_strength;
+    }
+
+    // The moon path, fading in as the sun goes down so the two do not add up
+    // in broad daylight where the moon reflection would not be visible.
+    if (moonlight > 0.0) {
+        mediump float night = 1.0 - smoothstep(-0.10, 0.10, sun.z);
+        color += vec3(0.80, 0.85, 1.0) * glitter(dir, moon)
+               * fresnel * 3.0 * moonlight * night * u_strength;
     }
 
     gl_FragColor = vec4(color, below * u_color.a);

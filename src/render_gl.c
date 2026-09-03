@@ -153,6 +153,7 @@ struct item
 
         struct {
             float sun[3];   // Sun position, observed frame.
+            float moon[4];  // Moon position + phase, observed frame.
             float strength;
             float floor;    // Minimum ground brightness setting.
         } ocean;
@@ -749,6 +750,8 @@ void render_quad(renderer_t *rend, const painter_t *painter,
         if (item && (
                 memcmp(item->ocean.sun, painter->ocean.sun,
                        sizeof(item->ocean.sun)) ||
+                memcmp(item->ocean.moon, painter->ocean.moon,
+                       sizeof(item->ocean.moon)) ||
                 item->ocean.strength != painter->ocean.strength ||
                 item->ocean.floor != painter->ocean.floor))
             item = NULL;
@@ -758,6 +761,8 @@ void render_quad(renderer_t *rend, const painter_t *painter,
             vec4_copy(painter->color, item->color);
             memcpy(item->ocean.sun, painter->ocean.sun,
                    sizeof(item->ocean.sun));
+            memcpy(item->ocean.moon, painter->ocean.moon,
+                   sizeof(item->ocean.moon));
             item->ocean.strength = painter->ocean.strength;
             item->ocean.floor = painter->ocean.floor;
             gl_buf_alloc(&item->buf, &OCEAN_BUF, 256);
@@ -1532,6 +1537,7 @@ static void item_ocean_render(renderer_t *rend, const item_t *item)
     gl_update_uniform_mat4(shader, "u_proj_mat", proj.mat);
     gl_update_uniform(shader, "u_color", item->color);
     gl_update_uniform(shader, "u_sun", item->ocean.sun);
+    gl_update_uniform(shader, "u_moon", item->ocean.moon);
     gl_update_uniform(shader, "u_strength", item->ocean.strength);
     gl_update_uniform(shader, "u_floor", item->ocean.floor);
 
