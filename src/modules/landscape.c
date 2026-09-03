@@ -29,6 +29,7 @@ typedef struct landscape {
     hips_t          *hips;
     obj_t           *shape; // For zero horizon landscape.
     bool            active;
+    bool            ocean;  // Rendered procedurally instead of from a hips.
     struct  {
         char        *name;
     } info;
@@ -48,6 +49,7 @@ typedef struct landscapes {
     // at night.  0 (the default) means we only use the brightness computed
     // from the sun and moon positions.
     double          brightness_floor;
+    double          ocean_strength;
     landscape_t     *current; // The current landscape.
     int             loading_code; // Return code of the initial list loading.
 } landscapes_t;
@@ -68,7 +70,8 @@ static int landscape_update(obj_t *obj, double dt)
     char path[1024];
     int code;
 
-    if (!(ls->parsed & LS_DESCRIPTION)) {
+    // The procedural landscapes have no data directory to read from.
+    if (!ls->ocean && !(ls->parsed & LS_DESCRIPTION)) {
         snprintf(path, sizeof(path), "%s/%s", ls->uri, "description.en.utf8");
         data = asset_get_data(path, NULL, &code);
         if (!code) return 0;
@@ -137,6 +140,43 @@ static void render_fog(const painter_t *painter_, double alpha)
     }
 }
 
+/*
+ * Render the procedural sea of the 'live-ocean' landscape.  Same healpix
+ * trick as the fog, but over the lower hemisphere instead of a band around
+ * the horizon; the shader does the rest from the view direction.
+ */
+static void render_ocean(const painter_t *painter_, double floor,
+                         double strength)
+{
+    int pix, order = 1, split = 4;
+    double theta, phi, sun_pos[4];
+    painter_t painter = *painter_;
+    uv_map_t map;
+    obj_t *sun;
+
+    if (painter.color[3] == 0.0) return;
+
+    sun = core_get_planet(PLANET_SUN);
+    obj_get_pos(sun, core->observer, FRAME_OBSERVED, sun_pos);
+    vec3_normalize(sun_pos, sun_pos);
+
+    painter.flags |= PAINTER_OCEAN_SHADER;
+    vec3_to_float(sun_pos, painter.ocean.sun);
+    painter.ocean.strength = strength;
+    painter.ocean.floor = floor;
+
+    for (pix = 0; pix < 12 * (1 << (2 * order)); pix++) {
+        healpix_pix2ang(1 << order, pix, &theta, &phi);
+        // Skip the tiles that are entirely above the horizon.  The tiles are
+        // about 30 degrees wide at this order, hence the margin.
+        if (theta < M_PI / 2 - 30 * DD2R) continue;
+        if (painter_is_healpix_clipped(&painter, FRAME_OBSERVED, order, pix))
+            continue;
+        uv_map_init_healpix(&map, order, pix, true, true);
+        paint_quad(&painter, FRAME_OBSERVED, &map, split);
+    }
+}
+
 static int landscape_render(obj_t *obj, const painter_t *painter_)
 {
     const landscape_t *ls = (const landscape_t*)obj;
@@ -181,6 +221,9 @@ static int landscape_render(obj_t *obj, const painter_t *painter_)
     if (ls->shape) {
         obj_render(ls->shape, &painter);
     }
+    if (ls->ocean) {
+        render_ocean(&painter, lss->brightness_floor, lss->ocean_strength);
+    }
     return 0;
 }
 
@@ -212,7 +255,11 @@ static landscape_t *add_from_uri(landscapes_t *lss, const char *uri,
     ls->key = strdup(key);
     ls->obj.id = ls->key;
     ls->uri = strdup(uri);
-    if (strcmp(key, "zero") != 0) {
+    ls->ocean = strcmp(key, "live-ocean") == 0;
+    if (ls->ocean) {
+        // Fully procedural, no hips survey to load.
+        ls->info.name = strdup("Live Ocean");
+    } else if (strcmp(key, "zero") != 0) {
         ls->hips = hips_create(uri, 0, NULL);
         hips_set_label(ls->hips, "Landscape");
         hips_set_frame(ls->hips, FRAME_OBSERVED);
@@ -235,6 +282,7 @@ static int landscapes_init(obj_t *obj, json_value *args)
     landscapes_t *lss = (landscapes_t*)obj;
     fader_init(&lss->visible, true);
     fader_init(&lss->fog_visible, true);
+    lss->ocean_strength = 1.0;
     return 0;
 }
 
@@ -335,6 +383,7 @@ static obj_klass_t landscape_klass = {
                  .on_changed = landscape_on_active_changed),
         PROPERTY(description, TYPE_STRING_PTR,
                  MEMBER(landscape_t, description)),
+        PROPERTY(ocean, TYPE_BOOL, MEMBER(landscape_t, ocean)),
         PROPERTY(url, TYPE_STRING_PTR, MEMBER(landscape_t, uri)),
         {}
     },
@@ -357,6 +406,8 @@ static obj_klass_t landscapes_klass = {
                  MEMBER(landscapes_t, fog_visible.target)),
         PROPERTY(brightness_floor, TYPE_FLOAT,
                  MEMBER(landscapes_t, brightness_floor)),
+        PROPERTY(ocean_strength, TYPE_FLOAT,
+                 MEMBER(landscapes_t, ocean_strength)),
         PROPERTY(current, TYPE_OBJ, MEMBER(landscapes_t, current)),
         PROPERTY(current_id, TYPE_STRING, .fn = landscapes_current_id_fn),
         {}

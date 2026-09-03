@@ -95,6 +95,7 @@ enum {
     PAINTER_ATMOSPHERE_SHADER   = 1 << 8,
     PAINTER_FOG_SHADER          = 1 << 9,
     PAINTER_ENABLE_DEPTH        = 1 << 10,
+    PAINTER_OCEAN_SHADER        = 1 << 11,
 
     // Passed to paint_lines.
     PAINTER_SKIP_DISCONTINUOUS  = 1 << 14,
@@ -175,6 +176,13 @@ struct painter
             float (*compute_lum)(void *user, const float pos[3]);
             void *user;
         } atm;
+
+        // For the procedural sea only.
+        struct {
+            float sun[3];   // Sun position, observed frame.
+            float strength;
+            float floor;    // Minimum ground brightness setting.
+        } ocean;
 
         // For line rendering only.
         struct {

@@ -136,7 +136,8 @@ const RENDERING_DEFAULTS = {
   center_hints_mag_offset: 0,
   display_limit_mag: LIMIT_MAG_UNLIMITED,
   'atmosphere.turbidity': 0.96,
-  'landscapes.brightness_floor': 0
+  'landscapes.brightness_floor': 0,
+  'landscapes.ocean_strength': 1
 }
 
 const SECTIONS = [
@@ -151,6 +152,7 @@ const SECTIONS = [
     ],
     sliders: [
       { path: 'landscapes.brightness_floor', label: 'Minimum Ground Brightness', min: 0, max: 1, step: 0.05 },
+      { path: 'landscapes.ocean_strength', label: 'Sea Reflection Strength', min: 0, max: 3, step: 0.05 },
       { path: 'atmosphere.turbidity', label: 'Turbidity', min: 0.1, max: 10, step: 0.1 }
     ]
   },
@@ -260,7 +262,8 @@ export default {
       LIMIT_MAG_MAX: LIMIT_MAG_MAX,
       landscapeOptions: [
         { text: 'Guereins', value: 'guereins' },
-        { text: 'Ocean', value: 'ocean' }
+        { text: 'Ocean', value: 'ocean' },
+        { text: this.$t('Live Ocean'), value: 'live-ocean' }
       ],
       projectionOptions: [
         { text: this.$t('Perspective'), value: 1 },
