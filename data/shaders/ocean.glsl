@@ -8,6 +8,20 @@
  */
 
 /*
+ * LICENSING, PLEASE READ BEFORE SHIPPING THIS.
+ *
+ * sea_octave() and the octave loop constants in sea_height() are taken from
+ * "Seascape" by Alexander Alekseev (TDM), https://shadertoy.com/view/Ms2SD1,
+ * which is CC BY-NC-SA 3.0.  That is incompatible with this repository on
+ * both counts: NonCommercial rules out the commercial licence this engine is
+ * also offered under, and ShareAlike would want the derivative back under
+ * CC BY-NC-SA rather than the AGPL.  Before this goes anywhere public,
+ * either get permission from the author (tdmaav@gmail.com, who has granted
+ * commercial licences before) or replace those two pieces with an
+ * independent implementation.  The rest of this file is our own.
+ */
+
+/*
  * Procedural sea, used by the 'live-ocean' landscape.  Unlike the panorama
  * landscapes there is no texture at all: the whole lower hemisphere is shaded
  * from the view direction and the sun position, so the reflection follows the
@@ -22,12 +36,14 @@
  * wave normals are what break that glitter up into the usual sparkling path
  * instead of one smooth streak.
  *
+ * The slope field is a few directional wave trains, which carry the wind
+ * direction and the right dispersion, plus fractal noise, which is what stops
+ * the result from looking like the sum of six sines that it would otherwise
+ * be.  Both are read through a warped domain for the same reason.
+ *
  * The reflected sky is an analytic colour, not the star field that was
  * actually drawn: sampling that back would need an offscreen render target,
  * which the renderer does not have.
- *
- * There are no waves and no time dependency here: everything is a function
- * of the view direction and the sun position only.
  */
 
 #ifdef GL_ES
@@ -64,10 +80,12 @@ void main()
 
 // Water at normal incidence reflects about 2% of the light.
 const mediump float F0 = 0.02;
-// Two lobes: a tight one for the core of the glitter path and a wide one
-// for the scatter around it.  A single tight lobe reads as a laser beam.
-const mediump float SHININESS = 300.0;
-const mediump float SHININESS_WIDE = 24.0;
+// Three lobes rather than one: real sun glitter is scattered over facets of
+// every size, and a single exponent gives it the hard edge of polished
+// plastic.  Exponents and weights follow the usual ocean shader values.
+const mediump float SHININESS_SHARP = 512.0;
+const mediump float SHININESS_MED   = 128.0;
+const mediump float SHININESS_BROAD =  32.0;
 // Colour of the water itself, what is left where nothing is reflected.
 const mediump vec3 DEEP = vec3(0.020, 0.070, 0.110);
 
@@ -78,37 +96,87 @@ const mediump vec3 DEEP = vec3(0.020, 0.070, 0.110);
 const highp float EYE_HEIGHT = 12.0;
 
 /*
- * Slope of the water surface at a point, as the gradient of a sum of
- * directional waves.  Deep water dispersion, w = sqrt(g k), keeps the long
- * swell moving faster than the ripples riding on it.
- *
- * `dist` attenuates each wave by its own wavenumber, so the short ones are
- * gone by the time they would alias into noise near the horizon.
+ * Wave field, after Alexander Alekseev's "Seascape" (shadertoy Ms2SD1,
+ * CC BY-NC-SA 3.0).  The shape of a wave is the whole point here: a sum of
+ * sines is smooth everywhere and reads as plastic, while the 1-|sin| basis
+ * below has sharp crests and flat troughs, which is what water does.
  */
-mediump vec2 wave_slope(highp vec2 p, highp float dist)
+const highp   float SEA_FREQ   = 0.30;   // 1/m, so a 21m dominant swell.
+const mediump float SEA_HEIGHT = 0.34;   // Metres, per octave before decay.
+const mediump float SEA_CHOPPY = 4.0;
+const highp   float SEA_SPEED  = 1.6;    // m/s.
+// Rotates by 37 degrees and scales by two between octaves.  Without the
+// rotation the octaves line up and the surface shows a grid.
+const mediump mat2 OCTAVE_M = mat2(1.6, 1.2, -1.2, 1.6);
+
+/*
+ * Value noise.  The hash input is wrapped first: our surface coordinates run
+ * to thousands of metres near the horizon, and feeding those to sin() at the
+ * usual magic constants lands well past the point where its argument keeps
+ * any precision, which shows up as streaks.  The 512 cell period this
+ * introduces is far larger than anything visible.
+ */
+highp float hash12(highp vec2 p)
 {
-    mediump vec2 g = vec2(0.0);
-    highp float k, w, att, phase;
-    mediump float amp;
+    p = mod(p, 512.0);
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
 
-    #define WAVE(dir, wavenumber, amplitude)                                 \
-        k = wavenumber;                                                      \
-        w = sqrt(9.81 * k);                                                  \
-        att = 1.0 / (1.0 + dist * k * 0.004);                                \
-        amp = (amplitude) * att;                                             \
-        phase = k * dot(dir, p) - w * u_time;                                \
-        g += amp * k * cos(phase) * (dir);
+highp float noise2(highp vec2 p)
+{
+    highp vec2 i = floor(p);
+    highp vec2 f = fract(p);
+    highp vec2 u = f * f * (3.0 - 2.0 * f);
+    return -1.0 + 2.0 * mix(mix(hash12(i + vec2(0.0, 0.0)),
+                                hash12(i + vec2(1.0, 0.0)), u.x),
+                            mix(hash12(i + vec2(0.0, 1.0)),
+                                hash12(i + vec2(1.0, 1.0)), u.x), u.y);
+}
 
-    WAVE(vec2( 1.000,  0.000), 0.32, 0.075)
-    WAVE(vec2( 0.707,  0.707), 0.71, 0.038)
-    WAVE(vec2(-0.588,  0.809), 1.63, 0.016)
-    WAVE(vec2( 0.914, -0.407), 3.40, 0.007)
-    // Sub metre chop, which is all there is to see in the near field.
-    WAVE(vec2(-0.259, -0.966), 7.20, 0.0030)
-    WAVE(vec2( 0.500, -0.866), 15.0, 0.0012)
-    #undef WAVE
+/*
+ * One octave.  The domain warp on the first line is what keeps the ridges
+ * from running in straight lines.
+ */
+mediump float sea_octave(highp vec2 uv, mediump float choppy)
+{
+    uv += noise2(uv);
+    mediump vec2 wv = 1.0 - abs(sin(uv));
+    mediump vec2 swv = abs(cos(uv));
+    wv = mix(wv, swv, wv);
+    return pow(1.0 - pow(wv.x * wv.y, 0.65), choppy);
+}
 
-    return g;
+/*
+ * Height of the water at a point.  Two counter travelling copies per octave,
+ * which interfere instead of merely sliding past, and each octave attenuated
+ * by its own wavenumber so the fine detail is gone before it can alias into
+ * the horizon.
+ */
+highp float sea_height(highp vec2 p, highp float dist)
+{
+    highp float freq = SEA_FREQ;
+    mediump float amp = SEA_HEIGHT;
+    mediump float choppy = SEA_CHOPPY;
+    highp float t = 1.0 + u_time * SEA_SPEED;
+    highp vec2 uv = p;
+    uv.x *= 0.75;
+
+    highp float h = 0.0, d, att, k = SEA_FREQ;
+    // Three octaves close up, two further out where the third is attenuated
+    // to nothing anyway and only costs.
+    for (int i = 0; i < 3; i++) {
+        if (i == 2 && dist > 350.0) break;
+        att = 1.0 / (1.0 + dist * k * 0.004);
+        d  = sea_octave((uv + t) * freq, choppy);
+        d += sea_octave((uv - t) * freq, choppy);
+        h += d * amp * att;
+        uv = OCTAVE_M * uv;
+        freq *= 1.9;
+        amp *= 0.22;
+        k *= 3.8;   // uv doubles and freq goes up 1.9, so the wavenumber does
+        choppy = mix(choppy, 1.0, 0.2);
+    }
+    return h;
 }
 
 /*
@@ -141,11 +209,21 @@ mediump vec3 sky_shape(mediump float up, mediump float sun_z)
  * tight one for the core of the path and the wide one for the scatter
  * around it.
  */
+mediump float lobe(mediump float d, mediump float s)
+{
+    // Normalising by (s + 8) / 8pi keeps a tighter lobe from also being a
+    // brighter one, so the three can be weighted by how much of the surface
+    // each really represents.
+    return pow(d, s) * (s + 8.0) / (25.1327);
+}
+
 mediump float glitter(highp vec3 dir, mediump vec3 light, mediump vec3 n)
 {
     mediump vec3 h = normalize(vec3(light) - vec3(dir));
-    mediump float n_dot_h = max(dot(n, h), 0.0);
-    return pow(n_dot_h, SHININESS) + 0.06 * pow(n_dot_h, SHININESS_WIDE);
+    mediump float d = max(dot(n, h), 0.0);
+    return 0.55 * lobe(d, SHININESS_SHARP)
+         + 0.30 * lobe(d, SHININESS_MED)
+         + 0.15 * lobe(d, SHININESS_BROAD);
 }
 
 void main()
@@ -163,7 +241,15 @@ void main()
     // foreshortening the waves need.
     highp float dist = EYE_HEIGHT / max(-dir.z, 1e-4);
     highp vec2 surface = dir.xy * dist;
-    mediump vec3 n = normalize(vec3(-wave_slope(surface, dist), 1.0));
+
+    // Normal by finite differences.  The epsilon grows with the square of
+    // the distance, which is Dave Hoskins' trick on the original: it filters
+    // the far water instead of letting it shimmer pixel by pixel.
+    highp float eps = max(dist * dist * 3e-4, 0.05);
+    highp float h0 = sea_height(surface, dist);
+    highp float hx = sea_height(surface + vec2(eps, 0.0), dist);
+    highp float hy = sea_height(surface + vec2(0.0, eps), dist);
+    mediump vec3 n = normalize(vec3((h0 - hx) / eps, (h0 - hy) / eps, 1.0));
 
     // Schlick.  Grazing angles reflect nearly everything, and now that the
     // normal moves it is the waves that decide which facets are grazing.
@@ -195,7 +281,7 @@ void main()
     // and the waves would otherwise have no contrast at all.
     if (sun_up > 0.0) {
         mediump float sss = max(dot(n, sun), 0.0) * (1.0 - fresnel);
-        color += vec3(0.06, 0.20, 0.17) * sss * sss * sun_up * day;
+        color += vec3(0.05, 0.28, 0.20) * sss * sss * sun_up * day;
     }
 
     if (sun_up > 0.0) {
@@ -203,7 +289,7 @@ void main()
                                      vec3(1.0, 0.95, 0.85),
                                      smoothstep(0.0, 0.35, sun.z));
         color += sun_color * glitter(dir, sun, n)
-               * fresnel * 25.0 * sun_up * u_strength;
+               * fresnel * 1.3 * sun_up * u_strength;
     }
 
     // The moon path, fading in as the sun goes down so the two do not add up
@@ -211,7 +297,7 @@ void main()
     if (moonlight > 0.0) {
         mediump float night = 1.0 - smoothstep(-0.10, 0.10, sun.z);
         color += vec3(0.80, 0.85, 1.0) * glitter(dir, moon, n)
-               * fresnel * 3.0 * moonlight * night * u_strength;
+               * fresnel * 0.18 * moonlight * night * u_strength;
     }
 
     gl_FragColor = vec4(color, below * u_color.a);
