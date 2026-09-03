@@ -28,7 +28,7 @@ static char *process_includes(const char *code)
     utstring_init(&ret);
     while ((pos = strstr(code, "#include"))) {
         utstring_printf(&ret, "%.*s", (int)(pos - code), code);
-        code = strstr(code, "\"") + 1;
+        code = strstr(pos, "\"") + 1;
         end = strstr(code, "\"");
         snprintf(path, sizeof(path), "asset://shaders/%.*s",
                  (int)(end - code), code);

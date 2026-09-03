@@ -265,7 +265,7 @@ export default {
             core.landscapes.addDataSource({ url: process.env.BASE_URL + 'skydata/landscapes/ocean', key: 'ocean' })
             // Rendered by a shader, the url is only there for the api.
             core.landscapes.addDataSource({ url: process.env.BASE_URL + 'skydata/landscapes', key: 'live-ocean' })
-            core.landscapes.current_id = 'ocean'
+            core.landscapes.current_id = 'live-ocean'
             core.milkyway.addDataSource({ url: process.env.BASE_URL + 'skydata/surveys/milkyway' })
             core.minor_planets.addDataSource({ url: process.env.BASE_URL + 'skydata/mpcorb.dat', key: 'mpc_asteroids' })
             core.planets.addDataSource({ url: process.env.BASE_URL + 'skydata/surveys/sso/moon', key: 'moon' })

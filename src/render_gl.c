@@ -157,6 +157,9 @@ struct item
             float strength;
             float floor;    // Minimum ground brightness setting.
             float time;     // Seconds, for the waves.
+            float eye_height;
+            float base[3];
+            float water_color[3];
         } ocean;
 
         struct {
@@ -749,28 +752,31 @@ void render_quad(renderer_t *rend, const painter_t *painter,
         item = get_item(rend, ITEM_OCEAN, n * n,
                         grid_size * grid_size * 6, tex);
         if (item && (
-                memcmp(item->ocean.sun, painter->ocean.sun,
-                       sizeof(item->ocean.sun)) ||
-                memcmp(item->ocean.moon, painter->ocean.moon,
-                       sizeof(item->ocean.moon)) ||
-                item->ocean.strength != painter->ocean.strength ||
-                item->ocean.floor != painter->ocean.floor ||
-                item->ocean.time != painter->ocean.time))
+                item->ocean.eye_height != painter->ocean.eye_height ||
+                memcmp(item->ocean.base, painter->ocean.base,
+                       sizeof(item->ocean.base)) ||
+                memcmp(item->ocean.water_color, painter->ocean.water_color,
+                       sizeof(item->ocean.water_color))))
             item = NULL;
         if (!item) {
             item = calloc(1, sizeof(*item));
             item->type = ITEM_OCEAN;
             vec4_copy(painter->color, item->color);
-            memcpy(item->ocean.sun, painter->ocean.sun,
-                   sizeof(item->ocean.sun));
-            memcpy(item->ocean.moon, painter->ocean.moon,
-                   sizeof(item->ocean.moon));
-            item->ocean.strength = painter->ocean.strength;
-            item->ocean.floor = painter->ocean.floor;
-            item->ocean.time = painter->ocean.time;
             gl_buf_alloc(&item->buf, &OCEAN_BUF, 256);
             gl_buf_alloc(&item->indices, &INDICES_BUF, 256 * 6);
         }
+        memcpy(item->ocean.sun, painter->ocean.sun,
+               sizeof(item->ocean.sun));
+        memcpy(item->ocean.moon, painter->ocean.moon,
+               sizeof(item->ocean.moon));
+        item->ocean.strength = painter->ocean.strength;
+        item->ocean.floor = painter->ocean.floor;
+        item->ocean.time = painter->ocean.time;
+        item->ocean.eye_height = painter->ocean.eye_height;
+        memcpy(item->ocean.base, painter->ocean.base,
+               sizeof(item->ocean.base));
+        memcpy(item->ocean.water_color, painter->ocean.water_color,
+               sizeof(item->ocean.water_color));
     } else {
         item = calloc(1, sizeof(*item));
         item->type = ITEM_TEXTURE;
@@ -1544,6 +1550,9 @@ static void item_ocean_render(renderer_t *rend, const item_t *item)
     gl_update_uniform(shader, "u_strength", item->ocean.strength);
     gl_update_uniform(shader, "u_floor", item->ocean.floor);
     gl_update_uniform(shader, "u_time", item->ocean.time);
+    gl_update_uniform(shader, "u_eye_height", item->ocean.eye_height);
+    gl_update_uniform(shader, "u_sea_base", item->ocean.base);
+    gl_update_uniform(shader, "u_sea_water_color", item->ocean.water_color);
 
     draw_buffer(&item->buf, &item->indices, GL_TRIANGLES);
 }

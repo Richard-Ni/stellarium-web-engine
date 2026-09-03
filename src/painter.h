@@ -186,6 +186,9 @@ struct painter
             float strength;
             float floor;    // Minimum ground brightness setting.
             float time;     // Seconds, for the waves.
+            float eye_height;
+            float base[3];
+            float water_color[3];
         } ocean;
 
         // For line rendering only.

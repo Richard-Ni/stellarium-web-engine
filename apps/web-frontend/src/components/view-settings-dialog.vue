@@ -137,7 +137,14 @@ const RENDERING_DEFAULTS = {
   display_limit_mag: LIMIT_MAG_UNLIMITED,
   'atmosphere.turbidity': 0.96,
   'landscapes.brightness_floor': 0,
-  'landscapes.ocean_strength': 1
+  'landscapes.ocean_strength': 1,
+  'landscapes.ocean_eye_height': 3.5,
+  'landscapes.ocean_base_r': 0.0,
+  'landscapes.ocean_base_g': 0.09,
+  'landscapes.ocean_base_b': 0.18,
+  'landscapes.ocean_water_r': 0.48,
+  'landscapes.ocean_water_g': 0.54,
+  'landscapes.ocean_water_b': 0.36
 }
 
 const SECTIONS = [
@@ -153,6 +160,13 @@ const SECTIONS = [
     sliders: [
       { path: 'landscapes.brightness_floor', label: 'Minimum Ground Brightness', min: 0, max: 1, step: 0.05 },
       { path: 'landscapes.ocean_strength', label: 'Sea Reflection Strength', min: 0, max: 3, step: 0.05 },
+      { path: 'landscapes.ocean_eye_height', label: 'Sea Eye Height', min: 1, max: 12, step: 0.1 },
+      { path: 'landscapes.ocean_base_r', label: 'Sea Base Red', min: 0, max: 1, step: 0.01 },
+      { path: 'landscapes.ocean_base_g', label: 'Sea Base Green', min: 0, max: 1, step: 0.01 },
+      { path: 'landscapes.ocean_base_b', label: 'Sea Base Blue', min: 0, max: 1, step: 0.01 },
+      { path: 'landscapes.ocean_water_r', label: 'Sea Water Red', min: 0, max: 1, step: 0.01 },
+      { path: 'landscapes.ocean_water_g', label: 'Sea Water Green', min: 0, max: 1, step: 0.01 },
+      { path: 'landscapes.ocean_water_b', label: 'Sea Water Blue', min: 0, max: 1, step: 0.01 },
       { path: 'atmosphere.turbidity', label: 'Turbidity', min: 0.1, max: 10, step: 0.1 }
     ]
   },

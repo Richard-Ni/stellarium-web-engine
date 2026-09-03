@@ -50,6 +50,13 @@ typedef struct landscapes {
     // from the sun and moon positions.
     double          brightness_floor;
     double          ocean_strength;
+    double          ocean_eye_height;
+    double          ocean_base_r;
+    double          ocean_base_g;
+    double          ocean_base_b;
+    double          ocean_water_r;
+    double          ocean_water_g;
+    double          ocean_water_b;
     // Seconds since startup, driving the waves.  Accumulated from dt rather
     // than read off core->clock: unix time does not survive the cast to the
     // float uniform, and the waves should not speed up with the time rate.
@@ -149,8 +156,8 @@ static void render_fog(const painter_t *painter_, double alpha)
  * trick as the fog, but over the lower hemisphere instead of a band around
  * the horizon; the shader does the rest from the view direction.
  */
-static void render_ocean(const painter_t *painter_, double floor,
-                         double strength, double time)
+static void render_ocean(const painter_t *painter_, const landscapes_t *lss,
+                         double time)
 {
     int pix, order = 1, split = 4;
     double theta, phi, sun_pos[4], moon_pos[4], moon_phase;
@@ -174,9 +181,16 @@ static void render_ocean(const painter_t *painter_, double floor,
     vec3_to_float(sun_pos, painter.ocean.sun);
     vec3_to_float(moon_pos, painter.ocean.moon);
     painter.ocean.moon[3] = moon_phase;
-    painter.ocean.strength = strength;
-    painter.ocean.floor = floor;
+    painter.ocean.strength = lss->ocean_strength;
+    painter.ocean.floor = lss->brightness_floor;
     painter.ocean.time = time;
+    painter.ocean.eye_height = lss->ocean_eye_height;
+    painter.ocean.base[0] = lss->ocean_base_r;
+    painter.ocean.base[1] = lss->ocean_base_g;
+    painter.ocean.base[2] = lss->ocean_base_b;
+    painter.ocean.water_color[0] = lss->ocean_water_r;
+    painter.ocean.water_color[1] = lss->ocean_water_g;
+    painter.ocean.water_color[2] = lss->ocean_water_b;
 
     for (pix = 0; pix < 12 * (1 << (2 * order)); pix++) {
         healpix_pix2ang(1 << order, pix, &theta, &phi);
@@ -235,8 +249,7 @@ static int landscape_render(obj_t *obj, const painter_t *painter_)
         obj_render(ls->shape, &painter);
     }
     if (ls->ocean) {
-        render_ocean(&painter, lss->brightness_floor, lss->ocean_strength,
-                     lss->ocean_time);
+        render_ocean(&painter, lss, lss->ocean_time);
     }
     return 0;
 }
@@ -297,6 +310,13 @@ static int landscapes_init(obj_t *obj, json_value *args)
     fader_init(&lss->visible, true);
     fader_init(&lss->fog_visible, true);
     lss->ocean_strength = 1.0;
+    lss->ocean_eye_height = 3.5;
+    lss->ocean_base_r = 0.0;
+    lss->ocean_base_g = 0.09;
+    lss->ocean_base_b = 0.18;
+    lss->ocean_water_r = 0.48;
+    lss->ocean_water_g = 0.54;
+    lss->ocean_water_b = 0.36;
     return 0;
 }
 
@@ -423,6 +443,17 @@ static obj_klass_t landscapes_klass = {
                  MEMBER(landscapes_t, brightness_floor)),
         PROPERTY(ocean_strength, TYPE_FLOAT,
                  MEMBER(landscapes_t, ocean_strength)),
+        PROPERTY(ocean_eye_height, TYPE_FLOAT,
+                 MEMBER(landscapes_t, ocean_eye_height)),
+        PROPERTY(ocean_base_r, TYPE_FLOAT, MEMBER(landscapes_t, ocean_base_r)),
+        PROPERTY(ocean_base_g, TYPE_FLOAT, MEMBER(landscapes_t, ocean_base_g)),
+        PROPERTY(ocean_base_b, TYPE_FLOAT, MEMBER(landscapes_t, ocean_base_b)),
+        PROPERTY(ocean_water_r, TYPE_FLOAT,
+                 MEMBER(landscapes_t, ocean_water_r)),
+        PROPERTY(ocean_water_g, TYPE_FLOAT,
+                 MEMBER(landscapes_t, ocean_water_g)),
+        PROPERTY(ocean_water_b, TYPE_FLOAT,
+                 MEMBER(landscapes_t, ocean_water_b)),
         PROPERTY(current, TYPE_OBJ, MEMBER(landscapes_t, current)),
         PROPERTY(current_id, TYPE_STRING, .fn = landscapes_current_id_fn),
         {}
