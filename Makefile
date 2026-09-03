@@ -25,6 +25,18 @@ js-es6-debug:
 js-es6-prof:
 	emscons scons -j8 mode=profile es6=1
 
+# Build the web frontend into apps/web-frontend/dist.  Only needed when the
+# frontend itself changed; a new engine additionally needs `make js-es6` and
+# `make -C apps/web-frontend update-engine` to copy it into the app.
+.PHONY: web-frontend
+web-frontend:
+	$(MAKE) -C apps/web-frontend build-local
+
+# Serve apps/web-frontend/dist for local preview, on http://localhost:8080.
+.PHONY: web-frontend-preview
+web-frontend-preview:
+	$(MAKE) -C apps/web-frontend preview
+
 # Make the doc using natualdocs.  On debian, we only have an old version
 # of naturaldocs available, where it is not possible to exclude files by
 # pattern.  I don't want to parse the C files (only the headers), so for

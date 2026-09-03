@@ -11,6 +11,14 @@
 <v-card v-if="$store.state.showViewSettingsDialog" class="secondary white--text">
   <v-card-title><div class="text-h5">{{ $t('View settings') }}</div></v-card-title>
   <v-card-text>
+    <v-select
+      hide-details
+      :label="$t('Landscape')"
+      :items="landscapeOptions"
+      item-text="text"
+      item-value="value"
+      v-model="currentLandscape"
+    ></v-select>
     <v-checkbox hide-details :label="$t('Milky Way')" v-model="milkyWayOn"></v-checkbox>
     <v-checkbox hide-details :label="$t('DSS')" v-model="dssOn"></v-checkbox>
     <v-checkbox hide-details :label="$t('Meridian Line')" v-model="meridianOn"></v-checkbox>
@@ -28,9 +36,21 @@
 export default {
   data: function () {
     return {
+      landscapeOptions: [
+        { text: 'Guereins', value: 'guereins' },
+        { text: 'Ocean', value: 'ocean' }
+      ]
     }
   },
   computed: {
+    currentLandscape: {
+      get: function () {
+        return this.$store.state.stel.landscapes.current_id
+      },
+      set: function (newValue) {
+        this.$stel.core.landscapes.current_id = newValue
+      }
+    },
     dssOn: {
       get: function () {
         return this.$store.state.stel.dss.visible
