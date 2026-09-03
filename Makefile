@@ -32,7 +32,9 @@ js-es6-prof:
 web-frontend:
 	$(MAKE) -C apps/web-frontend build-local
 
-# Serve apps/web-frontend/dist for local preview, on http://localhost:8080.
+# Serve apps/web-frontend/dist for local preview, on port 8080.  It binds
+# every interface, so the preview is also reachable from other machines on
+# the network; the address to use is printed on startup.
 .PHONY: web-frontend-preview
 web-frontend-preview:
 	$(MAKE) -C apps/web-frontend preview
