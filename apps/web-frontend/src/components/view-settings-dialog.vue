@@ -148,6 +148,7 @@ const SECTIONS = [
       { path: 'cardinals.visible', label: 'Cardinal Points' }
     ],
     sliders: [
+      { path: 'landscapes.brightness_floor', label: 'Minimum Ground Brightness', min: 0, max: 1, step: 0.05 },
       { path: 'atmosphere.turbidity', label: 'Turbidity', min: 0.1, max: 10, step: 0.1 }
     ]
   },

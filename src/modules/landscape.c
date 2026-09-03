@@ -44,6 +44,10 @@ typedef struct landscapes {
     obj_t           obj;
     fader_t         visible;
     fader_t         fog_visible;
+    // Minimum brightness of the landscape, so that the ground stays visible
+    // at night.  0 (the default) means we only use the brightness computed
+    // from the sun and moon positions.
+    double          brightness_floor;
     landscape_t     *current; // The current landscape.
     int             loading_code; // Return code of the initial list loading.
 } landscapes_t;
@@ -158,7 +162,7 @@ static int landscape_render(obj_t *obj, const painter_t *painter_)
     render_fog(&painter, lss->fog_visible.value);
 
     painter.color[3] *= lss->visible.value;
-    brightness = get_global_brightness();
+    brightness = fmax(get_global_brightness(), lss->brightness_floor);
 
     // Adjust the alpha to make the landscape transparent when we look down
     // and when we zoom in.
@@ -351,6 +355,8 @@ static obj_klass_t landscapes_klass = {
         PROPERTY(visible, TYPE_BOOL, MEMBER(landscapes_t, visible.target)),
         PROPERTY(fog_visible, TYPE_BOOL,
                  MEMBER(landscapes_t, fog_visible.target)),
+        PROPERTY(brightness_floor, TYPE_FLOAT,
+                 MEMBER(landscapes_t, brightness_floor)),
         PROPERTY(current, TYPE_OBJ, MEMBER(landscapes_t, current)),
         PROPERTY(current_id, TYPE_STRING, .fn = landscapes_current_id_fn),
         {}
