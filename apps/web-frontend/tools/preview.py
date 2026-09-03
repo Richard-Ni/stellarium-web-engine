@@ -18,6 +18,7 @@ import argparse
 import errno
 import functools
 import os
+import socket
 import sys
 import http.server
 
@@ -36,6 +37,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # dist/ is rebuilt in place with stable index.html, don't cache it.
         self.send_header('Cache-Control', 'no-store')
         super().end_headers()
+
+
+def lan_address():
+    """Return the address this machine is reachable at on its network.
+
+    The server binds every interface, so a preview is usable from a phone or
+    another machine, but the loopback name alone doesn't say so.  Opening a
+    UDP socket sends nothing; it just asks the routing table which local
+    address would be used to reach the outside.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(('10.255.255.255', 1))
+        address = sock.getsockname()[0]
+    except OSError:  # No route out, eg: offline.
+        return None
+    finally:
+        sock.close()
+    return None if address.startswith('127.') else address
 
 
 if __name__ == '__main__':
@@ -59,7 +79,12 @@ if __name__ == '__main__':
         sys.exit('port %d is already in use, retry with eg: make preview '
                  'PORT=%d' % (args.port, args.port + 1))
 
-    print('Serving %s at http://localhost:%d/' % (args.directory, args.port))
+    print('Serving %s at:' % args.directory)
+    print('  http://localhost:%d/' % args.port)
+    address = lan_address()
+    if address:
+        print('  http://%s:%d/  (reachable from other machines)'
+              % (address, args.port))
     try:
         server.serve_forever()
     except KeyboardInterrupt:
