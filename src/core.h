@@ -168,6 +168,12 @@ struct core
     // Can be used for debugging.  It's convenient to have an exposed test
     // attribute.
     bool test;
+
+    // True if this was built without NDEBUG.  Such a build follows every GL
+    // call with a glGetError(), which on the web is a synchronous round trip
+    // to the GPU process and costs about a thousand stalls per frame, so it
+    // is exposed here for the frontend to warn about.
+    bool debug_build;
 };
 
 enum {

@@ -6,7 +6,7 @@
 # The terms of the AGPL v3 license can be found in the main directory of this
 # repository.
 
-.PHONY: setup build build-local dev start preview
+.PHONY: setup build build-local dev start preview check-engine
 
 gen-es6:
 	cd ../.. && docker run -it -p 8000:8000 -v "$(CURDIR)/../..:/app" swe-dev /bin/bash -c "source /emsdk/emsdk_env.sh && make js-es6"
@@ -22,10 +22,31 @@ update-engine:
 	cp ../../build/stellarium-web-engine.js src/assets/js/
 	cp ../../build/stellarium-web-engine.wasm src/assets/js/
 
+# A debug engine wraps every GL call in a glGetError(), which on the web is a
+# synchronous round trip to the GPU process: about a thousand stalls a frame,
+# which takes the app from 60 fps to 3.  Only use this when you actually need
+# the assertions, and run `make update-engine` to get back to a fast one.
 update-engine-debug:
 	make gen-es6-debug
 	cp ../../build/stellarium-web-engine.js src/assets/js/
 	cp ../../build/stellarium-web-engine.wasm src/assets/js/
+	@echo
+	@echo "  *** Installed a DEBUG engine. Expect ~3 fps: every GL call is"
+	@echo "  *** followed by a glGetError().  Run 'make update-engine' to"
+	@echo "  *** restore the release build."
+	@echo
+
+# Report whether the engine currently installed in src/assets/js is a debug
+# build.  SAFE_HEAP is only emitted for mode=debug, so it is a reliable tell.
+.PHONY: check-engine
+check-engine:
+	@if grep -q SAFE_HEAP_LOAD src/assets/js/stellarium-web-engine.js; then \
+		echo "DEBUG engine installed -- expect ~3 fps."; \
+		echo "Run 'make update-engine' for the release build."; \
+		exit 1; \
+	else \
+		echo "Release engine installed."; \
+	fi
 
 USER_UID := $(shell id -u)
 USER_GID := $(shell id -g)

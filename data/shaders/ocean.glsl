@@ -161,32 +161,8 @@ highp float sea_height(highp vec2 p, highp float dist)
     uv.x *= 0.75;
 
     highp float h = 0.0, d, att, k = SEA_FREQ;
-    // Three octaves throughout: the third carries much of the fine ridging
-    // that makes the surface read as water rather than moulded plastic.
-    for (int i = 0; i < 3; i++) {
-        att = 1.0 / (1.0 + dist * k * 0.004);
-        d  = sea_octave((uv + t) * freq, choppy);
-        d += sea_octave((uv - t) * freq, choppy);
-        h += d * amp * att;
-        uv = OCTAVE_M * uv;
-        freq *= 1.9;
-        amp *= 0.22;
-        k *= 3.8;   // uv doubles and freq goes up 1.9, so the wavenumber does
-        choppy = mix(choppy, 1.0, 0.2);
-    }
-    return h;
-}
-
-highp float sea_height_detailed(highp vec2 p, highp float dist)
-{
-    highp float freq = SEA_FREQ;
-    mediump float amp = SEA_HEIGHT;
-    mediump float choppy = SEA_CHOPPY;
-    highp float t = 1.0 + u_time * SEA_SPEED;
-    highp vec2 uv = p;
-    uv.x *= 0.75;
-
-    highp float h = 0.0, d, att, k = SEA_FREQ;
+    // Five octaves: the later ones carry the fine ridging that makes the
+    // surface read as water rather than moulded plastic.
     for (int i = 0; i < 5; i++) {
         att = 1.0 / (1.0 + dist * k * 0.004);
         d  = sea_octave((uv + t) * freq, choppy);
@@ -195,7 +171,7 @@ highp float sea_height_detailed(highp vec2 p, highp float dist)
         uv = OCTAVE_M * uv;
         freq *= 1.9;
         amp *= 0.22;
-        k *= 3.8;
+        k *= 3.8;   // uv doubles and freq goes up 1.9, so the wavenumber does
         choppy = mix(choppy, 1.0, 0.2);
     }
     return h;
@@ -239,9 +215,9 @@ void main()
     // the distance, which is Dave Hoskins' trick on the original: it filters
     // the far water instead of letting it shimmer pixel by pixel.
     highp float eps = max(dist * dist * 8e-5, 0.02);
-    highp float h0 = sea_height_detailed(surface, dist);
-    highp float hx = sea_height_detailed(surface + vec2(eps, 0.0), dist);
-    highp float hy = sea_height_detailed(surface + vec2(0.0, eps), dist);
+    highp float h0 = sea_height(surface, dist);
+    highp float hx = sea_height(surface + vec2(eps, 0.0), dist);
+    highp float hy = sea_height(surface + vec2(0.0, eps), dist);
     mediump vec3 n = normalize(vec3((h0 - hx) / eps, (h0 - hy) / eps, 1.0));
 
     mediump float dist2 = dot(vec3(surface, 0.0), vec3(surface, 0.0))
