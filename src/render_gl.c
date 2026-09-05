@@ -88,6 +88,7 @@ enum {
     ITEM_TEXTURE_2D,
     ITEM_ATMOSPHERE,
     ITEM_FOG,
+    ITEM_OCEAN,
     ITEM_PLANET,
     ITEM_VG_ELLIPSE,
     ITEM_VG_RECT,
@@ -149,6 +150,17 @@ struct item
             float p[12];    // Color computation coefs.
             float sun[3];   // Sun position.
         } atm;
+
+        struct {
+            float sun[3];   // Sun position, observed frame.
+            float moon[4];  // Moon position + phase, observed frame.
+            float strength;
+            float floor;    // Minimum ground brightness setting.
+            float time;     // Seconds, for the waves.
+            float eye_height;
+            float base[3];
+            float water_color[3];
+        } ocean;
 
         struct {
             char text[128];
@@ -262,6 +274,14 @@ static const gl_buf_info_t ATMOSPHERE_BUF = {
 };
 
 static const gl_buf_info_t FOG_BUF = {
+    .size = 24,
+    .attrs = {
+        [ATTR_POS]       = {GL_FLOAT, 3, false, 0},
+        [ATTR_SKY_POS]   = {GL_FLOAT, 3, false, 12},
+    },
+};
+
+static const gl_buf_info_t OCEAN_BUF = {
     .size = 24,
     .attrs = {
         [ATTR_POS]       = {GL_FLOAT, 3, false, 0},
@@ -728,6 +748,35 @@ void render_quad(renderer_t *rend, const painter_t *painter,
             gl_buf_alloc(&item->buf, &FOG_BUF, 256);
             gl_buf_alloc(&item->indices, &INDICES_BUF, 256 * 6);
         }
+    } else if (painter->flags & PAINTER_OCEAN_SHADER) {
+        item = get_item(rend, ITEM_OCEAN, n * n,
+                        grid_size * grid_size * 6, tex);
+        if (item && (
+                item->ocean.eye_height != painter->ocean.eye_height ||
+                memcmp(item->ocean.base, painter->ocean.base,
+                       sizeof(item->ocean.base)) ||
+                memcmp(item->ocean.water_color, painter->ocean.water_color,
+                       sizeof(item->ocean.water_color))))
+            item = NULL;
+        if (!item) {
+            item = calloc(1, sizeof(*item));
+            item->type = ITEM_OCEAN;
+            vec4_copy(painter->color, item->color);
+            gl_buf_alloc(&item->buf, &OCEAN_BUF, 256);
+            gl_buf_alloc(&item->indices, &INDICES_BUF, 256 * 6);
+        }
+        memcpy(item->ocean.sun, painter->ocean.sun,
+               sizeof(item->ocean.sun));
+        memcpy(item->ocean.moon, painter->ocean.moon,
+               sizeof(item->ocean.moon));
+        item->ocean.strength = painter->ocean.strength;
+        item->ocean.floor = painter->ocean.floor;
+        item->ocean.time = painter->ocean.time;
+        item->ocean.eye_height = painter->ocean.eye_height;
+        memcpy(item->ocean.base, painter->ocean.base,
+               sizeof(item->ocean.base));
+        memcpy(item->ocean.water_color, painter->ocean.water_color,
+               sizeof(item->ocean.water_color));
     } else {
         item = calloc(1, sizeof(*item));
         item->type = ITEM_TEXTURE;
@@ -761,7 +810,7 @@ void render_quad(renderer_t *rend, const painter_t *painter,
                     (float[3]){p[0], p[1], p[2]});
             gl_buf_1f(&item->buf, -1, ATTR_LUMINANCE, lum);
         }
-        if (painter->flags & PAINTER_FOG_SHADER) {
+        if (painter->flags & (PAINTER_FOG_SHADER | PAINTER_OCEAN_SHADER)) {
             gl_buf_3f(&item->buf, -1, ATTR_SKY_POS, VEC3_SPLIT(p));
         }
         gl_buf_next(&item->buf);
@@ -1474,6 +1523,40 @@ static void item_fog_render(renderer_t *rend, const item_t *item)
     GL(glCullFace(GL_BACK));
 }
 
+static void item_ocean_render(renderer_t *rend, const item_t *item)
+{
+    gl_shader_t *shader;
+    projection_t proj;
+
+    shader_define_t defines[] = {
+        {"PROJ", rend->proj.klass->id},
+        {}
+    };
+    shader = shader_get("ocean", defines, ATTR_NAMES, init_shader);
+    GL(glUseProgram(shader->prog));
+    // The tiles cover the whole lower hemisphere and the shader discards
+    // what is above the horizon, so we must not cull anything here.
+    GL(glDisable(GL_CULL_FACE));
+    GL(glEnable(GL_BLEND));
+    GL(glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                           GL_ZERO, GL_ONE));
+    GL(glDisable(GL_DEPTH_TEST));
+
+    proj = rend_get_proj(rend, item->flags);
+    gl_update_uniform_mat4(shader, "u_proj_mat", proj.mat);
+    gl_update_uniform(shader, "u_color", item->color);
+    gl_update_uniform(shader, "u_sun", item->ocean.sun);
+    gl_update_uniform(shader, "u_moon", item->ocean.moon);
+    gl_update_uniform(shader, "u_strength", item->ocean.strength);
+    gl_update_uniform(shader, "u_floor", item->ocean.floor);
+    gl_update_uniform(shader, "u_time", item->ocean.time);
+    gl_update_uniform(shader, "u_eye_height", item->ocean.eye_height);
+    gl_update_uniform(shader, "u_sea_base", item->ocean.base);
+    gl_update_uniform(shader, "u_sea_water_color", item->ocean.water_color);
+
+    draw_buffer(&item->buf, &item->indices, GL_TRIANGLES);
+}
+
 static void item_atmosphere_render(renderer_t *rend, const item_t *item)
 {
     gl_shader_t *shader;
@@ -1759,6 +1842,9 @@ static void rend_flush(renderer_t *rend)
             break;
         case ITEM_FOG:
             item_fog_render(rend, item);
+            break;
+        case ITEM_OCEAN:
+            item_ocean_render(rend, item);
             break;
         case ITEM_PLANET:
             item_planet_render(rend, item);

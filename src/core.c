@@ -237,6 +237,11 @@ void core_init(double win_w, double win_h, double pixel_scale)
     core->win_size[1] = win_h;
     core->win_pixels_scale = pixel_scale;
     core->display_limit_mag = 99;
+    core->debug_build = DEBUG;
+    if (core->debug_build) {
+        LOG_W("Debug build: every GL call is followed by a glGetError(), "
+              "which is very slow on the web.  Rebuild with mode=release.");
+    }
 
     core->observer = (observer_t*)obj_create("observer", NULL);
     core->observer->obj.id = "observer";
@@ -1024,6 +1029,7 @@ static obj_klass_t core_klass = {
         PROPERTY(clicks, TYPE_INT, MEMBER(core_t, clicks)),
         PROPERTY(zoom, TYPE_FLOAT, MEMBER(core_t, zoom)),
         PROPERTY(test, TYPE_BOOL, MEMBER(core_t, test)),
+        PROPERTY(debug_build, TYPE_BOOL, MEMBER(core_t, debug_build)),
         PROPERTY(exposure_scale, TYPE_FLOAT, MEMBER(core_t, exposure_scale)),
         PROPERTY(star_linear_scale, TYPE_FLOAT,
                  MEMBER(core_t, star_linear_scale)),

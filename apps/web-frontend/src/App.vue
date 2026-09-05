@@ -53,6 +53,14 @@
     </v-layout>
   </v-navigation-drawer>
 
+  <v-alert v-if="debugBuild" type="warning" dense tile class="debug-build-banner"
+           icon="mdi-speedometer-slow" :value="true">
+    Debug engine build: every GL call is followed by a glGetError(), which costs
+    about a thousand synchronous GPU round trips per frame and holds the app at
+    a few fps.  Rebuild with <code>make -C apps/web-frontend update-engine</code>
+    &mdash; not <code>update-engine-debug</code>.
+  </v-alert>
+
   <v-main>
     <v-container class="fill-height" fluid style="padding: 0">
       <div id="stel" v-bind:class="{ right_panel: $store.state.showSidePanel }">
@@ -90,7 +98,8 @@ export default {
       guiComponent: 'GuiLoader',
       startTimeIsSet: false,
       initDone: false,
-      dataSourceInitDone: false
+      dataSourceInitDone: false,
+      debugBuild: false
     }
   },
   components: { Gui, GuiLoader },
@@ -237,6 +246,17 @@ export default {
           that.$stel.setFont('bold', process.env.BASE_URL + 'fonts/Roboto-Bold.ttf', 1.38)
           that.$stel.core.constellations.show_only_pointed = false
 
+          // A debug engine build wraps every GL call in a glGetError(), which
+          // is a synchronous round trip to the GPU process and drops the app
+          // from 60 to about 3 fps.  It is easy to install one by accident
+          // (update-engine-debug), and nothing else makes it visible.
+          that.debugBuild = that.$stel.core.debug_build === true
+          if (that.debugBuild) {
+            console.warn('[stellarium-web] Debug engine build: every GL call ' +
+              'is followed by a glGetError(). Expect ~3 fps. Rebuild with ' +
+              '`make -C apps/web-frontend update-engine`.')
+          }
+
           that.setStateFromQueryArgs()
           that.guiComponent = 'Gui'
           for (const i in that.$stellariumWebPlugins()) {
@@ -263,7 +283,9 @@ export default {
             core.dsos.addDataSource({ url: process.env.BASE_URL + 'skydata/dso' })
             core.landscapes.addDataSource({ url: process.env.BASE_URL + 'skydata/landscapes/guereins', key: 'guereins' })
             core.landscapes.addDataSource({ url: process.env.BASE_URL + 'skydata/landscapes/ocean', key: 'ocean' })
-            core.landscapes.current_id = 'ocean'
+            // Rendered by a shader, the url is only there for the api.
+            core.landscapes.addDataSource({ url: process.env.BASE_URL + 'skydata/landscapes', key: 'live-ocean' })
+            core.landscapes.current_id = 'live-ocean'
             core.milkyway.addDataSource({ url: process.env.BASE_URL + 'skydata/surveys/milkyway' })
             core.minor_planets.addDataSource({ url: process.env.BASE_URL + 'skydata/mpcorb.dat', key: 'mpc_asteroids' })
             core.planets.addDataSource({ url: process.env.BASE_URL + 'skydata/surveys/sso/moon', key: 'moon' })
@@ -289,6 +311,23 @@ a {
 
 a:link {
   text-decoration-line: none;
+}
+
+/* The engine canvas fills the window, so the debug banner has to float. */
+.debug-build-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  margin: 0;
+  font-size: 13px;
+}
+
+.debug-build-banner code {
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  box-shadow: none;
 }
 
 .divider_menu {

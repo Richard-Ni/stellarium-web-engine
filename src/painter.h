@@ -95,6 +95,7 @@ enum {
     PAINTER_ATMOSPHERE_SHADER   = 1 << 8,
     PAINTER_FOG_SHADER          = 1 << 9,
     PAINTER_ENABLE_DEPTH        = 1 << 10,
+    PAINTER_OCEAN_SHADER        = 1 << 11,
 
     // Passed to paint_lines.
     PAINTER_SKIP_DISCONTINUOUS  = 1 << 14,
@@ -175,6 +176,20 @@ struct painter
             float (*compute_lum)(void *user, const float pos[3]);
             void *user;
         } atm;
+
+        // For the procedural sea only.
+        struct {
+            float sun[3];   // Sun position, observed frame.
+            // Moon position, observed frame, w is the phase, so that a thin
+            // crescent reflects a lot less than a full moon.
+            float moon[4];
+            float strength;
+            float floor;    // Minimum ground brightness setting.
+            float time;     // Seconds, for the waves.
+            float eye_height;
+            float base[3];
+            float water_color[3];
+        } ocean;
 
         // For line rendering only.
         struct {
